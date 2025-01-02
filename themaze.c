@@ -2,14 +2,25 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <locale.h>
 
 int main_menu(int time_in_main);
 int pause_menu(int time_in_pause);
 int maze(int time_in_maze);
 void setting_menu();
 void credits_menu();
+void tutorial();
+void tutor_animation(WINDOW *tutorial, int page_on);
+void do_nothing();
 
 int x = 1, y = 1;
+int level_counter = 0;
+int point_counter = 0;
+
+
+void do_nothing() {
+    // This function intentionally does nothing
+}
 
 int pause_menu(int time_in_pause){
     int choice = 0;
@@ -19,14 +30,27 @@ int pause_menu(int time_in_pause){
     keypad(pause, TRUE);
     
     box(pause, 0, 0);
-    mvwprintw(pause, 2, 40, "Time Passed: %d", time_in_pause);
+
+    mvwprintw(pause, 2, 40, "Time Passed: ");
+    wattron(pause, COLOR_PAIR(1));
+    mvwprintw(pause, 2, 53, "%d", time_in_pause);
+    wattroff(pause, COLOR_PAIR(1));
+
+    mvwprintw(pause, 3, 46, "Level: ");
+    wattron(pause, COLOR_PAIR(2));
+    mvwprintw(pause, 3, 53, "%d", level_counter);
+    wattroff(pause, COLOR_PAIR(2));
+
+    mvwprintw(pause, 4, 45, "Points: ");
+    mvwprintw(pause, 4, 53, "%d", point_counter);
+
     wrefresh(pause);
 
     while(1){
         for(int i = 0; i < 2; i++){
             if(i == highlight)
                 wattron(pause, A_REVERSE);
-            mvwprintw(pause, 12+2*i, 15, "%s", choices[i]);
+            mvwprintw(pause, 3+2*i, 5, "%s", choices[i]);
             wattroff(pause, A_REVERSE);
         }
         choice = wgetch(pause);
@@ -39,6 +63,9 @@ int pause_menu(int time_in_pause){
                 wrefresh(pause);
                 main_menu(0);
             }
+        }
+        else if(choice == 27){
+            return time_in_pause;
         }
         switch(choice)
         {
@@ -60,41 +87,49 @@ int pause_menu(int time_in_pause){
 }
 
 int main_menu(int time_in_main){
+    x = 1, y = 1;
     int choice = 0;
     int highlight = 0;
-    const char* choices[] = {"Start", "Setting", "Credits", "Quit"};
+    const char* choices[] = {"How to Play", "Start", "Setting", "Credits", "Quit"};
 
     WINDOW *menu = newwin(20, 60, 5, 5);
     keypad(menu, TRUE);
     
     box(menu, 0, 0);
     
-    mvwprintw(menu, 3, 18, "Welcome to the Maze Game!!");
+    mvwprintw(menu, 5, 18, "Welcome to the Maze Game!!");
     while(1){
-        for(int i = 0; i < 4; i++){
+        for(int i = 0; i < 5; i++){
             if(i == highlight)
                 wattron(menu, A_REVERSE);
-            mvwprintw(menu, 12, 15+8*i, "%s", choices[i]);
+            
+            if(i == 0)
+                mvwprintw(menu, 13, 24, "%s", choices[i]);
+            else
+                mvwprintw(menu, 14, 7+8*i, "%-7s", choices[i]);
             wattroff(menu, A_REVERSE);
         }
         choice = wgetch(menu);
         if(choice == '\n'){
             if(highlight == 0){
+                tutorial();
+            }
+            else if(highlight == 1){
                 wclear(menu);
                 wrefresh(menu);
                 maze(time_in_main);
             }   
-            else if(highlight == 1){
+            else if(highlight == 2){
                 wclear(menu);
                 wrefresh(menu);
                 setting_menu();
             }
-            else if(highlight == 2){
+            else if(highlight == 3){
                 wclear(menu);
                 wrefresh(menu);
                 credits_menu();
             }
-            else if(highlight == 3){
+            else if(highlight == 4){
                 endwin();
                 exit(0);
             }
@@ -103,13 +138,21 @@ int main_menu(int time_in_main){
         {
             case KEY_LEFT:
                 highlight--;
-                if(highlight < 0)
-                    highlight = 0;
+                if(highlight < 1)
+                    highlight = 1;
                 break;
             case KEY_RIGHT:
                 highlight++;
                 if(highlight > 4)
                     highlight = 4;
+                break;
+            case KEY_UP:
+                if(highlight != 0)
+                    highlight = 0;
+                break;
+            case KEY_DOWN:
+                if(highlight == 0)
+                    highlight = 2;
                 break;
             default:
                 break;
@@ -130,16 +173,21 @@ int maze(int time_in_maze){
 
     WINDOW *timer = newwin(3, 12, 1, 5);
     WINDOW *maze = newwin(20, 60, 5, 5);
+    WINDOW *cog = newwin(3, 9, 1, 54);
 
     nodelay(maze, TRUE);
     keypad(maze, TRUE);       // Enable keypad for the maze window
 
     // Draw the initial box around the maze
     box(maze, 0, 0);
+    box(cog, 0, 0);
 
+    mvwprintw(cog, 1, 1, "ESC   *");
+
+    wrefresh(cog);
     wrefresh(maze);           // Refresh the maze window to display the box
 
-    while ((key = wgetch(maze)) != 'q') { // Read input from the maze window
+    while (key = wgetch(maze)) { // Read input from the maze window
         box(maze, 0, 0);
         mvwprintw(maze, y, x, "O");
         wrefresh(maze); // Refresh the maze window to show changes
@@ -166,6 +214,8 @@ int maze(int time_in_maze){
                 if (y > 18) y = 18; // Keep within bottom bound
             }
             else if (key == 27) {
+                wclear(cog);
+                wrefresh(cog);
                 wclear(timer);
                 wrefresh(timer);
                 time_in_maze = pause_menu(time_in_maze+elapsed_time);
@@ -185,7 +235,12 @@ int maze(int time_in_maze){
         snprintf(formatted_time, sizeof(formatted_time), "%04d", elapsed_time + time_in_maze);
 
         box(timer, 0, 0);
-        mvwprintw(timer, 1, 1, "Time: %s", formatted_time);
+
+        mvwprintw(timer, 1, 1, "Time: ");
+        wattron(timer, COLOR_PAIR(1));
+        mvwprintw(timer, 1, 6, "%s", formatted_time);
+        wattroff(timer, COLOR_PAIR(1));
+        
         wrefresh(timer);
     }
     wclear(timer);
@@ -210,7 +265,7 @@ void setting_menu(){
         for(int i = 0; i < 2; i++){
             if(i == highlight)
                 wattron(setting, A_REVERSE);
-            mvwprintw(setting, 5+8*i, 15, "%s", choices[i]);
+            mvwprintw(setting, 5+8*i, 17, "%s", choices[i]);
             wattroff(setting, A_REVERSE);
         }
         choice = wgetch(setting);
@@ -258,7 +313,7 @@ void credits_menu(){
         for(int i = 0; i < 2; i++){
             if(i == highlight)
                 wattron(credits, A_REVERSE);
-            mvwprintw(credits, 5+8*i, 15, "%s", choices[i]);
+            mvwprintw(credits, 5+8*i, 17, "%s", choices[i]);
             wattroff(credits, A_REVERSE);
         }
         choice = wgetch(credits);
@@ -292,14 +347,102 @@ void credits_menu(){
     }
 }
 
+void tutorial(){
+    int choice = 0;
+    int highlight = 1;
+    const char* choices[] = {"<- Prev", "Return", "Next ->"};
+    
+    int page_on = 0;
+    int pos[] = {3, 27, 50};
+
+    WINDOW *tutorial = newwin(20, 60, 5, 5);
+    keypad(tutorial, TRUE);
+    nodelay(tutorial, TRUE);
+
+    box(tutorial, 0, 0);
+    
+
+    while(1){
+        mvwprintw(tutorial, 14, 26, "Page: %d", page_on);
+        for(int i = 0; i < 3; i++){
+            if(page_on == 0 && i == 0){
+                mvwprintw(tutorial, 16, pos[i], "       ");
+            }
+            else if(page_on == 5 && i == 2){
+                mvwprintw(tutorial, 16, pos[i], "       ");
+            }
+            else{
+                if(i == highlight){
+                    wattron(tutorial, A_REVERSE);
+                }
+                mvwprintw(tutorial, 16, pos[i], "%s", choices[i]);
+                wattroff(tutorial, A_REVERSE);
+            }
+        }
+        choice = wgetch(tutorial);
+        if(choice == '\n'){
+            if(highlight == 0){
+                page_on--;
+                tutor_animation(tutorial, page_on);
+            }   
+            else if(highlight == 1){
+                wclear(tutorial);
+                wrefresh(tutorial);
+                main_menu(0);
+            }
+            else if(highlight == 2){
+                page_on++;
+                tutor_animation(tutorial, page_on);
+            }   
+        }
+        switch(choice)
+        {
+            case KEY_LEFT:
+                if(page_on == 0 && highlight == 1)
+                    highlight = 1;
+                else{
+                    highlight--;
+                    if(highlight < 0)
+                        highlight = 0;
+                }
+                break;
+            case KEY_RIGHT:
+                if(page_on == 5 && highlight == 1)
+                    highlight = 1;
+                else{
+                    highlight++;
+                    if(highlight > 2)
+                        highlight = 2;
+                }
+                break;
+            default:
+                break;
+        }
+        
+        //消失後往中間
+        if((page_on == 0 && highlight == 0)||(page_on == 5 && highlight == 2)){
+                highlight = 1;
+        }
+
+        wrefresh(tutorial);
+    }
+}
+
+void tutor_animation(WINDOW *tutorial, int page_on){
+    
+}
 int main() {
     int time_in_main = 0;
 
+    setlocale(LC_ALL, "");
     initscr();                // Initialize ncurses mode
     cbreak();                 // Disable line buffering
     noecho();                 // Disable echoing of input
     curs_set(0); // Hide the cursor
-
+    ESCDELAY = 10; // 10 ms wait time for multibyte sequences
+    start_color();
+    init_pair(1, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(2, COLOR_BLUE, COLOR_BLACK);
     main_menu(time_in_main);
     
     endwin();     // End ncurses mode
