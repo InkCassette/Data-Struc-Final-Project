@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <locale.h>
+#include <pthread.h>
 
 int main_menu(int time_in_main);
 int pause_menu(int time_in_pause);
@@ -13,6 +14,9 @@ void tutorial();
 void tutor_animation(WINDOW *tutorial, int page_on);
 void do_nothing();
 void erase_area(WINDOW *win, int start_y, int start_x, int height, int width);
+void *pickup_coin(void *arg);
+void level_advance(WINDOW *score, WINDOW *timer, WINDOW *maze);
+void time_out();
 
 int x = 1, y = 1;
 int level_counter = 0;
@@ -236,6 +240,8 @@ int maze(int time_in_maze){
     time_t current_time;
     int elapsed_time = 0;
     int key;
+    int time_left = 99;
+    pthread_t score_counting;
 
     if(time_in_maze != 0){  //Add the time passed in prev session
         elapsed_time = time_in_maze;
@@ -244,6 +250,7 @@ int maze(int time_in_maze){
     WINDOW *timer = newwin(3, 12, 1, 5);
     WINDOW *maze = newwin(20, 60, 5, 5);
     WINDOW *cog = newwin(3, 9, 1, 54);
+    WINDOW *score = newwin(3, 15, 1, 17);
 
     nodelay(maze, TRUE);
     keypad(maze, TRUE);       // Enable keypad for the maze window
@@ -251,9 +258,16 @@ int maze(int time_in_maze){
     // Draw the initial box around the maze
     box(maze, 0, 0);
     box(cog, 0, 0);
+    box(score, 0, 0);
 
     mvwprintw(cog, 1, 1, "ESC   *");
 
+    mvwprintw(score, 1, 1, "Score: ");
+    wattron(score, COLOR_PAIR(1));
+    mvwprintw(score, 1, 7, "%6d", point_counter);
+    wattroff(score, COLOR_PAIR(1));
+
+    wrefresh(score);
     wrefresh(cog);
     wrefresh(maze);           // Refresh the maze window to display the box
 
@@ -285,12 +299,26 @@ int maze(int time_in_maze){
                 if (maze_map[y][x] == 0){//碰到 "#" 不移動 
                     x++;
                 }
+                else if(maze_map[y][x] == 2){
+                    pthread_create(&score_counting, NULL, pickup_coin, score);
+                }
+                else if(maze_map[y][x] == 3){
+                    pthread_join(score_counting, NULL);
+                    level_advance(score, timer, maze);
+                }
             }
             else if (key == KEY_RIGHT) {
                 x++;
                 if (x > 58) x = 58; // Keep within right bound
                 if (maze_map[y][x] == 0){//碰到 "#" 不移動 
                     x--;
+                }
+                else if(maze_map[y][x] == 2){
+                    pthread_create(&score_counting, NULL, pickup_coin, score);
+                }
+                else if(maze_map[y][x] == 3){
+                    pthread_join(score_counting, NULL);
+                    level_advance(score, timer, maze);
                 }
             }
             else if (key == KEY_UP) {
@@ -299,6 +327,13 @@ int maze(int time_in_maze){
                 if (maze_map[y][x] == 0){//碰到 "#" 不移動 
                     y++;
                 }
+                else if(maze_map[y][x] == 2){
+                    pthread_create(&score_counting, NULL, pickup_coin, score);
+                }
+                else if(maze_map[y][x] == 3){
+                    pthread_join(score_counting, NULL);
+                    level_advance(score, timer, maze);
+                }
             }
             else if (key == KEY_DOWN) {
                 y++;
@@ -306,12 +341,21 @@ int maze(int time_in_maze){
                 if (maze_map[y][x] == 0){//碰到 "#" 不移動 
                     y--;
                 }
+                else if(maze_map[y][x] == 2){
+                    pthread_create(&score_counting, NULL, pickup_coin, score);
+                }
+                else if(maze_map[y][x] == 3){
+                    pthread_join(score_counting, NULL);
+                    level_advance(score, timer, maze);
+                }
             }
             else if (key == 27) {
                 wclear(cog);
                 wrefresh(cog);
                 wclear(timer);
                 wrefresh(timer);
+                wclear(score);
+                wrefresh(score);
                 time_in_maze = pause_menu(time_in_maze+elapsed_time);
                 start_time = time(NULL);
             }
@@ -324,15 +368,21 @@ int maze(int time_in_maze){
 
         current_time = time(NULL);  // Get the current time
         elapsed_time = (int)difftime(current_time, start_time);
-
-        char formatted_time[5];
-        snprintf(formatted_time, sizeof(formatted_time), "%04d", elapsed_time + time_in_maze);
-
+        time_left = 10 - elapsed_time;
+        if(time_left < 0){
+            wclear(cog);
+            wrefresh(cog);
+            wclear(timer);
+            wrefresh(timer);
+            wclear(score);                
+            wrefresh(score);
+            time_out();
+        }
         box(timer, 0, 0);
 
         mvwprintw(timer, 1, 1, "Time: ");
         wattron(timer, COLOR_PAIR(1));
-        mvwprintw(timer, 1, 6, "%s", formatted_time);
+        mvwprintw(timer, 1, 6, "%4d", time_left);
         wattroff(timer, COLOR_PAIR(1));
         
         wrefresh(timer);
@@ -706,6 +756,42 @@ void tutor_animation(WINDOW *tutorial, int page_on){
             break;
     }
 }
+
+void *pickup_coin(void *arg){
+    WINDOW *score = (WINDOW *)arg;
+    for(int i = 0; i < 10; i++){
+        point_counter = point_counter + 50;
+        mvwprintw(score, 1, 1, "Score: ");
+        wattron(score, COLOR_PAIR(1));
+        mvwprintw(score, 1, 7, "%6d", point_counter);
+        wattroff(score, COLOR_PAIR(1));
+        napms(50);
+        wrefresh(score);
+    }
+}
+
+void level_advance(WINDOW *score, WINDOW *timer, WINDOW *maze){
+    do_nothing();
+}
+
+void time_out(){
+    int back = 0;
+    WINDOW *lose = newwin(20, 60, 5, 5);
+    keypad(lose, TRUE);
+    box(lose, 0, 0);
+    mvwprintw(lose, 5, 20, "You run out of time...");
+    mvwprintw(lose, 7, 20, "Your score is %6d", point_counter);
+
+    wattron(lose, A_REVERSE);
+    mvwprintw(lose, 14, 23, "return to menu");
+    wattroff(lose, A_REVERSE);
+    
+    while(back = wgetch(lose)){
+        if(back == '\n')
+            main_menu(0);
+    }
+}
+
 int main() {
     int time_in_main = 0;
 
