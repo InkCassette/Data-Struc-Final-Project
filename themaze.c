@@ -12,11 +12,81 @@ void credits_menu();
 void tutorial();
 void tutor_animation(WINDOW *tutorial, int page_on);
 void do_nothing();
+void erase_area(WINDOW *win, int start_y, int start_x, int height, int width);
 
 int x = 1, y = 1;
 int level_counter = 0;
 int point_counter = 0;
 
+//**********function of generating MAZE*************
+
+#define WIDTH  59 // 單邊網格數量
+#define HEIGHT 19 // 單邊網格數量
+int maze_map[HEIGHT][WIDTH]; 
+int visited[HEIGHT][WIDTH]; 
+
+void dfs(int start_x, int start_y) {
+    visited[start_y][start_x] = 1;
+
+    // 方向：上、下、左、右
+    int directions[4][2] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
+    
+    // 洗牌
+    for (int i = 0; i < 4; i++) {
+        int random = rand() % 4;
+        int tempx = directions[i][0], tempy = directions[i][1];
+        directions[i][0] = directions[random][0];
+        directions[i][1] = directions[random][1];
+        directions[random][0] = tempx;
+        directions[random][1] = tempy;
+    }
+
+    // 遍歷每個方向
+    for (int i = 0; i < 4; i++) {
+        int next_x = start_x + 2*directions[i][0];
+        int next_y = start_y + 2*directions[i][1];
+
+        // 檢查越界跟visited
+        if (next_x >= 0 && next_x < WIDTH && next_y >= 0 && next_y < HEIGHT && !visited[next_y][next_x]) {
+            // 移除牆
+            maze_map[start_y + directions[i][1]][start_x + directions[i][0]] = 1;
+
+            // 遞歸
+            dfs(next_x, next_y);
+        }
+    }
+}
+
+void seed() {
+    
+    srand(time(NULL)); // 設置隨機種子
+
+    // 初始化迷宮
+    for (int i = 0; i <  HEIGHT ; i++) {
+        for (int j = 0; j <  WIDTH ; j++) {
+            if(i%2 == 1 && j%2 == 1){maze_map[i][j] = 1; } //通道
+            else{maze_map[i][j] = 0; }// 牆壁
+        }
+    }
+    
+    int start_x = 1, start_y = 1;
+    int end_x = 57, end_y = 17;
+    maze_map[start_y][start_x] = 1;  // 起始點
+    maze_map[end_y][end_x] = 1;     // 終點
+    maze_map[end_y-1][end_x] = 1;     // 終點
+    maze_map[end_y][end_x-1] = 1;     // 終點
+    maze_map[end_y-1][end_x] = 1;     // 終點
+
+}
+
+//**********function of generating MAZE*************
+
+void erase_area(WINDOW *win, int start_y, int start_x, int height, int width) {
+    for (int i = 0; i < height; ++i) {
+        mvwprintw(win, start_y + i, start_x, "%*s", width, ""); // Overwrite with spaces
+    }
+    wrefresh(win); // Refresh to show the changes
+}
 
 void do_nothing() {
     // This function intentionally does nothing
@@ -41,7 +111,7 @@ int pause_menu(int time_in_pause){
     mvwprintw(pause, 3, 53, "%d", level_counter);
     wattroff(pause, COLOR_PAIR(2));
 
-    mvwprintw(pause, 4, 45, "Points: ");
+    mvwprintw(pause, 4, 46, "Score: ");
     mvwprintw(pause, 4, 53, "%d", point_counter);
 
     wrefresh(pause);
@@ -187,6 +257,18 @@ int maze(int time_in_maze){
     wrefresh(cog);
     wrefresh(maze);           // Refresh the maze window to display the box
 
+    // 生成迷宮
+    seed();                    //生成迷宮
+    dfs(1, 1);                  //生成迷宮
+    for (int my = 1; my < HEIGHT; my++) {
+        for (int mx = 1; mx < WIDTH; mx++) {
+            mvwprintw(maze, my, mx, maze_map[my][mx] ? " " : "#"); // " "表示路徑，"#"表示牆
+            visited[my][mx] = 0; //重制visited 才能重新生成地圖
+        }
+        printf("\n");
+    }
+    //////
+
     while (key = wgetch(maze)) { // Read input from the maze window
         box(maze, 0, 0);
         mvwprintw(maze, y, x, "O");
@@ -200,18 +282,30 @@ int maze(int time_in_maze){
             if (key == KEY_LEFT) {
                 x--;
                 if (x < 1) x = 1; // Keep within left bound
+                if (maze_map[y][x] == 0){//碰到 "#" 不移動 
+                    x++;
+                }
             }
             else if (key == KEY_RIGHT) {
                 x++;
                 if (x > 58) x = 58; // Keep within right bound
+                if (maze_map[y][x] == 0){//碰到 "#" 不移動 
+                    x--;
+                }
             }
             else if (key == KEY_UP) {
                 y--;
                 if (y < 1) y = 1; // Keep within top bound
+                if (maze_map[y][x] == 0){//碰到 "#" 不移動 
+                    y++;
+                }
             }
             else if (key == KEY_DOWN) {
                 y++;
                 if (y > 18) y = 18; // Keep within bottom bound
+                if (maze_map[y][x] == 0){//碰到 "#" 不移動 
+                    y--;
+                }
             }
             else if (key == 27) {
                 wclear(cog);
@@ -361,9 +455,10 @@ void tutorial(){
 
     box(tutorial, 0, 0);
     
+    tutor_animation(tutorial, page_on);
 
     while(1){
-        mvwprintw(tutorial, 14, 26, "Page: %d", page_on);
+        mvwprintw(tutorial, 18, 27, "Page: %d", page_on);
         for(int i = 0; i < 3; i++){
             if(page_on == 0 && i == 0){
                 mvwprintw(tutorial, 16, pos[i], "       ");
@@ -429,7 +524,187 @@ void tutorial(){
 }
 
 void tutor_animation(WINDOW *tutorial, int page_on){
-    
+    erase_area(tutorial, 2, 2, 14, 58);
+    box(tutorial, 0, 0);
+    wrefresh(tutorial);
+    switch(page_on)
+    {
+        case 0:
+            int tutor_x = 26;
+            int tutor_y = 6;
+            mvwprintw(tutorial, 14, 14, "This is simply a game of maze... .");
+            mvwprintw(tutorial,  6, 26, "o ###    # ");
+            mvwprintw(tutorial,  7, 26, "#   ###  ##");
+            mvwprintw(tutorial,  8, 26, "###   #  # ");
+            mvwprintw(tutorial,  9, 26, "# ### #    ");
+            mvwprintw(tutorial, 10, 26, "  # # #####");
+            mvwprintw(tutorial, 11, 26, "### #      ");
+            wrefresh(tutorial);
+            char ani_o_move_1[] = {'R','D','R','R','D','R','R','D','D','D','R','R','R','R','R'};
+            for(int i = 0; i < 15; i++){
+                switch(ani_o_move_1[i]){
+                    case 'R':
+                        mvwprintw(tutorial, tutor_y, tutor_x, " ");
+                        tutor_x++;
+                        mvwprintw(tutorial, tutor_y, tutor_x, "o");
+                        break;
+                    case 'D':
+                        mvwprintw(tutorial, tutor_y, tutor_x, " ");
+                        tutor_y++;
+                        mvwprintw(tutorial, tutor_y, tutor_x, "o");
+                        break;
+                    default:
+                        break;
+                }
+                napms(150);
+                wrefresh(tutorial);
+            }
+            napms(150);
+            mvwprintw(tutorial, tutor_y, tutor_x, " ");
+            break;
+        case 1:
+            tutor_x = 26;
+            tutor_y = 8;
+            mvwprintw(tutorial, 14, 10, "Reach the end to advance to the next level.");
+            mvwprintw(tutorial,  7, 26, "###########");
+            mvwprintw(tutorial,  8, 26, "o         F");
+            mvwprintw(tutorial,  9, 26, "###########");
+            wrefresh(tutorial);
+            char ani_o_move_2[] = {'R','R','R','R','R','R','R','R','R','R'};
+            for(int i = 0; i < 10; i++){
+                switch(ani_o_move_2[i]){
+                    case 'R':
+                        mvwprintw(tutorial, tutor_y, tutor_x, " ");
+                        tutor_x++;
+                        mvwprintw(tutorial, tutor_y, tutor_x, "o");
+                        break;
+                    default:
+                        break;
+                }
+                napms(150);
+                wrefresh(tutorial);
+            }
+            napms(150);
+            erase_area(tutorial, 7, 26, 3, 12);
+            mvwprintw(tutorial,  8, 25, "  Finish!  ");
+            wrefresh(tutorial);
+            break;
+        case 2:
+            tutor_x = 26;
+            tutor_y = 8;
+            mvwprintw(tutorial, 14, 8, "Remerber to pick up some coins for extra point!");
+            mvwprintw(tutorial,  7, 26, "###########");
+            mvwprintw(tutorial,  8, 26, "o         $");
+            mvwprintw(tutorial,  9, 26, "###########");
+            wrefresh(tutorial);
+            char ani_o_move_3[] = {'R','R','R','R','R','R','R','R','R','R'};
+            for(int i = 0; i < 10; i++){
+                switch(ani_o_move_3[i]){
+                    case 'R':
+                        mvwprintw(tutorial, tutor_y, tutor_x, " ");
+                        tutor_x++;
+                        mvwprintw(tutorial, tutor_y, tutor_x, "o");
+                        break;
+                    default:
+                        break;
+                }
+                napms(150);
+                wrefresh(tutorial);
+            }
+            napms(150);
+            erase_area(tutorial, 7, 26, 3, 12);
+            mvwprintw(tutorial,  8, 25, "   +500    ");
+            wrefresh(tutorial);
+            break;
+        case 3:
+            tutor_x = 99;
+            tutor_y = 0;
+            mvwprintw(tutorial, 14, 9, "Time spent is also a good bonus to your score!");
+            mvwprintw(tutorial, 8, 21, "Time: %2d Score: %4d", tutor_x, tutor_y);
+            mvwprintw(tutorial, 9, 25, "TIME BONUS!!!");
+            wrefresh(tutorial);
+            for(int i = 0; i < 99; i++){
+                tutor_x--;
+                tutor_y = tutor_y +50;
+                mvwprintw(tutorial, 8, 21, "Time: %2d Score: %4d", tutor_x, tutor_y);
+                napms(50);
+                wrefresh(tutorial);
+                mvwprintw(tutorial, 8, 21, "Time:    Score:   ");
+            }
+            mvwprintw(tutorial, 8, 21, "Time: %2d Score: %4d", tutor_x, tutor_y);
+            wrefresh(tutorial);
+            break;
+        case 4:
+            mvwprintw(tutorial, 13, 19, "If the game is too easy,");
+            mvwprintw(tutorial, 14, 2, "try to spice it up by changing the difficulty settings!!");
+            wrefresh(tutorial);
+            mvwprintw(tutorial, 8, 27, "Setting");
+            wrefresh(tutorial);
+            napms(1000);
+
+            wattron(tutorial, A_REVERSE);
+            mvwprintw(tutorial, 8, 27, "Setting");
+            wattroff(tutorial, A_REVERSE);
+            wrefresh(tutorial);
+            napms(300);
+
+            mvwprintw(tutorial, 8, 27, "       ");
+            mvwprintw(tutorial, 7, 20, "Difficulty:  <  Easy  >");
+            wattron(tutorial, A_REVERSE);
+            mvwprintw(tutorial, 9, 27, "Return");
+            wattroff(tutorial, A_REVERSE);
+            wrefresh(tutorial);
+            napms(1000);
+
+            mvwprintw(tutorial, 9, 27, "Return");
+            wattron(tutorial, A_REVERSE);
+            mvwprintw(tutorial, 7, 20, "Difficulty");
+            wattroff(tutorial, A_REVERSE);
+            mvwprintw(tutorial, 7, 30, ":  <  Easy  >");
+            wrefresh(tutorial);
+            napms(300);
+
+            mvwprintw(tutorial, 7, 20, "Difficulty:  ");
+            wattron(tutorial, A_REVERSE);
+            mvwprintw(tutorial, 7, 33, "<");
+            wattroff(tutorial, A_REVERSE);
+            mvwprintw(tutorial, 7, 34, "  Easy  >");
+            wrefresh(tutorial);
+            napms(1000);
+
+            mvwprintw(tutorial, 7, 33, "<  Easy  ");
+            wattron(tutorial, A_REVERSE);
+            mvwprintw(tutorial, 7, 42, ">");
+            wattroff(tutorial, A_REVERSE);
+            wrefresh(tutorial);
+            napms(300);
+
+            mvwprintw(tutorial, 7, 33, "< Medium ");
+            wrefresh(tutorial);
+            napms(300);
+
+            mvwprintw(tutorial, 7, 33, "<  Hard  ");
+            wrefresh(tutorial);
+            napms(300);
+
+            break;
+        case 5:
+            mvwprintw(tutorial, 14, 12, "Beat the 10 levels to beat the game!!");
+            wrefresh(tutorial);
+            for(int i = 0; i < 3; i++){
+                mvwprintw(tutorial, 8, 24, "GAME OVER!!!");
+                napms(1000);
+                wrefresh(tutorial);
+                mvwprintw(tutorial, 8, 24, "            ");
+                napms(500);
+                wrefresh(tutorial);
+            }
+            mvwprintw(tutorial, 8, 24, "GAME OVER!!!");
+            wrefresh(tutorial);
+            break;
+        default:
+            break;
+    }
 }
 int main() {
     int time_in_main = 0;
