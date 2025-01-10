@@ -1041,8 +1041,25 @@ void tutor_animation(WINDOW *tutorial, int page_on){
 }
 
 void level_advance(WINDOW *score, int time_left, WINDOW *maze){
+    int skip = 0;
     level_counter = level_counter + 1;
     WINDOW *level_up = newwin(20, 60, 5, 5);
+    box(level_up,0,0);
+    wrefresh(level_up);
+
+    nodelay(level_up, TRUE);
+    keypad(level_up, TRUE); 
+
+
+    for(int j = 0; j < 19; j++){
+            if(j != 0){
+                mvwprintw(level_up, j, 1, "                                                          ");
+            }
+            mvwprintw(level_up, 1+j, 1, "__________________________________________________________");
+            wrefresh(level_up);
+            napms(50);
+    }
+    wclear(level_up);
     box(level_up,0,0);
     wrefresh(level_up);
 
@@ -1083,6 +1100,15 @@ void level_advance(WINDOW *score, int time_left, WINDOW *maze){
     mvwprintw(level_up, 12, 23, "TIME BONUS!!");
     mvwprintw(level_up, 8, 24, "LEVEL UP!!");
     while(time_left > 0){
+        skip = wgetch(level_up);
+        if(skip == '\n'){
+            point_counter = point_counter + 50*time_left;
+            time_left = 0;
+            mvwprintw(level_up, 11, 19, "Time: %2d Score: %5d", time_left, point_counter);
+            napms(50);
+            wrefresh(level_up);
+            break;
+        }
         time_left--;
         point_counter = point_counter + 50;
         mvwprintw(level_up, 11, 19, "Time: %2d Score: %5d", time_left, point_counter);
@@ -1091,8 +1117,19 @@ void level_advance(WINDOW *score, int time_left, WINDOW *maze){
     }
     
     if(level_counter == 4){
+        for(int j = 0; j < 19; j++){
+            if(j != 0){
+                mvwprintw(level_up, j, 1, "                                                          ");
+            }
+            mvwprintw(level_up, 1+j, 1, "__________________________________________________________");
+            wrefresh(level_up);
+            napms(50);
+        }
         wclear(level_up);
         wrefresh(level_up);
+        delwin(maze);
+        delwin(level_up);
+        delwin(score);
         end_game();
     }
 
@@ -1183,10 +1220,15 @@ void time_out(){
 }
 
 void end_game(){
+    int skip = 0;
     int rate_counter = 0;
     WINDOW *end = newwin(20, 60, 5, 5);
     box(end,0,0);
-    mvwprintw(end, 8, 24, "GAME OVER");
+
+    nodelay(end, TRUE);
+    keypad(end, TRUE); 
+
+    mvwprintw(end, 6, 24, "GAME OVER");
     wrefresh(end);
     napms(150);
     mvwprintw(end, 9, 18, "YOU BEAT THE MAZE GAME");
@@ -1196,6 +1238,14 @@ void end_game(){
     wrefresh(end);
     napms(30);
     while(rate_counter < point_counter){
+        skip = wgetch(end);
+        if(skip == '\n'){
+            rate_counter = point_counter;
+            mvwprintw(end, 11, 18, "Your score is : %6d", rate_counter);
+            napms(50);
+            wrefresh(end);
+            break;
+        }
         rate_counter = rate_counter + 50;
         mvwprintw(end, 11, 18, "Your score is : %6d", rate_counter);
         wrefresh(end);
@@ -1232,7 +1282,13 @@ void end_game(){
     wrefresh(end);
     napms(100);
     mvwprintw(end, 16, 10, "Press any key to back to main menu...");
+    
+    nodelay(end,FALSE);
+
+    flushinp();
+
     wgetch(end);
+
     napms(100);
     delwin(end);
     main_menu(0);
